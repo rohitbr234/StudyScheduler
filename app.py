@@ -8,20 +8,28 @@ import pandas as pd
 from dateutil import parser  
 from datetime import timedelta
 
-
 # Load environment variables
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 st.title("📚 Study Planner")
 
-# --- User Inputs ---
+# --- Step 1: Google Login First ---
+service = get_calendar_service()
+if not service:
+    st.info("🔐 Please authorize Google Calendar access to continue.")
+    st.stop()
+else:
+    st.success("✅ Connected to Google Calendar!")
+
+# --- Step 2: User Inputs ---
 subject = st.text_input("Subject (required)")
 study_guide = st.text_area("Paste your study guide (optional)")
 test_date = st.date_input("Date of Test", min_value=datetime.date.today())
 weekday_hours = st.number_input("Hours available on weekdays", 1, 6, 2)
 weekend_hours = st.number_input("Hours available on weekends", 1, 12, 4)
 
+# Generate date list with weekday names
 start_date = datetime.date.today()
 days_list = []
 for i in range((test_date - start_date).days + 1):
@@ -29,7 +37,7 @@ for i in range((test_date - start_date).days + 1):
     days_list.append(f"{d.strftime('%Y-%m-%d (%A)')}")
 available_days = "\n".join(days_list)
 
-# --- Generate Study Plan ---
+# --- Step 3: Generate Study Plan ---
 if st.button("Generate Schedule"):
     if not subject:
         st.error("Please enter a subject")
@@ -64,7 +72,6 @@ if st.button("Generate Schedule"):
         Do NOT include any explanations outside the Markdown.
         """
 
-
         try:
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -80,37 +87,34 @@ if st.button("Generate Schedule"):
         except Exception as e:
             st.error(f"Error: {str(e)}")
 
-# --- Display Saved Plan ---
+# --- Step 4: Display Saved Plan ---
 if "plan_md" in st.session_state:
     plan_md = st.session_state["plan_md"]
     st.markdown(plan_md, unsafe_allow_html=True)
 
-    # --- Add to Google Calendar ---
+    # --- Step 5: Confirm Add to Google Calendar ---
     if st.checkbox("📅 Add this schedule to Google Calendar"):
-        service = get_calendar_service()
+        rows = []
+        lines = plan_md.splitlines()
 
-        if service:
-            rows = []
-            lines = plan_md.splitlines()
+        for line in lines:
+            if "|" in line and "Date" not in line and "---" not in line:
+                parts = [p.strip() for p in line.split("|") if p.strip()]
+                if len(parts) >= 3:
+                    date_str, hours, topic = parts[0], parts[1], parts[2]
+                    try:
+                        date = parser.parse(date_str).date()
+                        rows.append((date, hours, topic))
+                    except:
+                        continue
 
-            for line in lines:
-                if "|" in line and "Date" not in line and "---" not in line:
-                    parts = [p.strip() for p in line.split("|") if p.strip()]
-                    if len(parts) >= 3:
-                        date_str, hours, topic = parts[0], parts[1], parts[2]
-                        try:
-                            date = parser.parse(date_str).date()  # more flexible parsing
-                            rows.append((date, hours, topic))
-                        except:
-                            continue
+        if rows:
+            df = pd.DataFrame(rows, columns=["Date", "Hours", "Topic"])
+            st.write("Events to be added:", df)
 
-            if rows:
-                df = pd.DataFrame(rows, columns=["Date", "Hours", "Topic"])
-                st.write("Events to be added:", df)
-
-                if st.button("Confirm and Add to Calendar"):
-                    for _, row in df.iterrows():
-                        create_event(service, subject, row["Date"], row["Hours"], row["Topic"])
-                    st.success("✅ Study sessions added to your Google Calendar!")
-            else:
-                st.warning("Could not parse schedule into events. Please check the table format.")
+            if st.button("Confirm and Add to Calendar"):
+                for _, row in df.iterrows():
+                    create_event(service, subject, row["Date"], row["Hours"], row["Topic"])
+                st.success("✅ Study sessions added to your Google Calendar!")
+        else:
+            st.warning("Could not parse schedule into events. Please check the table format.")
