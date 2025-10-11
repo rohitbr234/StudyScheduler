@@ -8,28 +8,29 @@ import pandas as pd
 from dateutil import parser  
 from datetime import timedelta
 
-# Load environment variables
+
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-st.title("📚 Study Planner")
+api_key = st.secrets.get("general", {}).get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 
-# --- Step 1: Google Login First ---
+client = OpenAI(api_key=api_key)
+
+
+st.title("Study Planner")
+
 service = get_calendar_service()
 if not service:
-    st.info("🔐 Please authorize Google Calendar access to continue.")
+    st.info("Please authorize Google Calendar access to continue.")
     st.stop()
 else:
-    st.success("✅ Connected to Google Calendar!")
+    st.success("Connected to Google Calendar!")
 
-# --- Step 2: User Inputs ---
 subject = st.text_input("Subject (required)")
 study_guide = st.text_area("Paste your study guide (optional)")
 test_date = st.date_input("Date of Test", min_value=datetime.date.today())
 weekday_hours = st.number_input("Hours available on weekdays", 1, 6, 2)
 weekend_hours = st.number_input("Hours available on weekends", 1, 12, 4)
 
-# Generate date list with weekday names
 start_date = datetime.date.today()
 days_list = []
 for i in range((test_date - start_date).days + 1):
@@ -37,7 +38,6 @@ for i in range((test_date - start_date).days + 1):
     days_list.append(f"{d.strftime('%Y-%m-%d (%A)')}")
 available_days = "\n".join(days_list)
 
-# --- Step 3: Generate Study Plan ---
 if st.button("Generate Schedule"):
     if not subject:
         st.error("Please enter a subject")
@@ -81,19 +81,16 @@ if st.button("Generate Schedule"):
                 ]
             )
 
-            # Save to session_state so it persists across reruns
             st.session_state["plan_md"] = response.choices[0].message.content
 
         except Exception as e:
             st.error(f"Error: {str(e)}")
 
-# --- Step 4: Display Saved Plan ---
 if "plan_md" in st.session_state:
     plan_md = st.session_state["plan_md"]
     st.markdown(plan_md, unsafe_allow_html=True)
 
-    # --- Step 5: Confirm Add to Google Calendar ---
-    if st.checkbox("📅 Add this schedule to Google Calendar"):
+    if st.checkbox("Add this schedule to Google Calendar"):
         rows = []
         lines = plan_md.splitlines()
 
@@ -115,6 +112,6 @@ if "plan_md" in st.session_state:
             if st.button("Confirm and Add to Calendar"):
                 for _, row in df.iterrows():
                     create_event(service, subject, row["Date"], row["Hours"], row["Topic"])
-                st.success("✅ Study sessions added to your Google Calendar!")
+                st.success("Study sessions added to your Google Calendar!")
         else:
             st.warning("Could not parse schedule into events. Please check the table format.")
