@@ -37,7 +37,7 @@ def get_calendar_service():
         flow = Flow.from_client_config(
             {"web": dict(client_config)},
             scopes=SCOPES,
-            redirect_uri="https://studyscheduler.streamlit.app"
+            redirect_uri="https://rohitbr234-studyscheduler-app-kcvmpe.streamlit.app"
         )
 
     query_params = st.query_params
