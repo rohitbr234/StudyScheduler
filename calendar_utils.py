@@ -30,14 +30,14 @@ def get_calendar_service():
         flow = Flow.from_client_secrets_file(
             "credentials.json",
             scopes=SCOPES,
-            redirect_uri="http://localhost:8501/"
+            redirect_uri="http://localhost:8501"
         )
     else:
         client_config = st.secrets["gcp_oauth"]
         flow = Flow.from_client_config(
             {"web": dict(client_config)},
             scopes=SCOPES,
-            redirect_uri="https://studyscheduler.streamlit.app/"
+            redirect_uri="https://studyscheduler.streamlit.app"
         )
 
     query_params = st.query_params
