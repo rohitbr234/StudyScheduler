@@ -70,42 +70,33 @@ def get_calendar_service():
             
             code = str(code).strip()
             
-            st.info(f"🔄 Processing authorization code... (length: {len(code)})")
-            
-            flow.fetch_token(code=code)
-            creds = flow.credentials
-            
-            st.session_state["google_creds"] = creds
-            
-            if "oauth_flow" in st.session_state:
-                del st.session_state["oauth_flow"]
-            if "flow_redirect_uri" in st.session_state:
-                del st.session_state["flow_redirect_uri"]
-            
-            st.query_params.clear()
-            st.success("✅ Authentication successful!")
-            st.rerun()
+            with st.spinner("🔄 Connecting to Google Calendar..."):
+                flow.fetch_token(code=code)
+                creds = flow.credentials
+                
+                st.session_state["google_creds"] = creds
+                
+                if "oauth_flow" in st.session_state:
+                    del st.session_state["oauth_flow"]
+                if "flow_redirect_uri" in st.session_state:
+                    del st.session_state["flow_redirect_uri"]
+                
+                st.query_params.clear()
+                st.success("✅ Successfully connected to Google Calendar!")
+                st.rerun()
             
         except Exception as e:
             error_msg = str(e)
-            st.error(f"❌ Authentication failed: {error_msg}")
+            st.error(f"❌ Connection failed: {error_msg}")
             
-            with st.expander("🔍 Debug Information - Please share this"):
-                st.write(f"**Error type:** {type(e).__name__}")
-                st.write(f"**Full error:** {error_msg}")
-                st.write(f"**Redirect URI:** `{redirect_uri}`")
-                st.write(f"**Code length:** {len(code) if 'code' in locals() else 'N/A'}")
-                st.write(f"**Running locally:** {running_locally}")
-                
-                if not running_locally:
-                    st.write("**Secrets keys:**", list(st.secrets.get("gcp_oauth", {}).keys()))
-                
-                st.write("---")
-                st.write("**Common causes:**")
-                st.write("1. Redirect URI mismatch in Google Cloud Console")
-                st.write("2. Using 'Desktop app' instead of 'Web application' client type")
-                st.write("3. Authorization code used twice (try authorizing again)")
-                st.write("4. Authorization code expired (valid for ~10 minutes)")
+            with st.expander("🔍 Debug Information"):
+                st.code(f"""
+Error Type: {type(e).__name__}
+Error Message: {error_msg}
+Redirect URI: {redirect_uri}
+Code Length: {len(code) if 'code' in locals() else 'N/A'}
+Running Locally: {running_locally}
+                """)
             
             st.query_params.clear()
             if "oauth_flow" in st.session_state:
@@ -113,27 +104,91 @@ def get_calendar_service():
             if "flow_redirect_uri" in st.session_state:
                 del st.session_state["flow_redirect_uri"]
             
-            st.info("Click the authorization link below to try again")
             return None
 
+    # Generate authorization URL
     auth_url, state = flow.authorization_url(
         prompt="consent",
         access_type="offline",
         include_granted_scopes="true"
     )
     
-    st.warning("🔐 **Authorization Required**")
-    st.write("Please click the link below to authorize Google Calendar access:")
-    st.markdown(f"### [🔗 Authorize Google Calendar Access]({auth_url})")
-    
-    with st.expander("ℹ️ Troubleshooting"):
-        st.write("**If you see 'Malformed auth code' error:**")
-        st.write("1. Verify in Google Cloud Console:")
-        st.write(f"   - Client type is **Web application** (not Desktop app)")
-        st.write(f"   - Authorized redirect URI is exactly: `{redirect_uri}`")
-        st.write("2. Wait 5 minutes after changing settings in Google Cloud Console")
-        st.write("3. Try authorizing in an incognito/private browser window")
-        st.write("4. Make sure you're not reusing an old authorization link")
+    # Clean, minimal authorization UI
+    st.markdown(f"""
+        <style>
+        .auth-box {{
+            background: white;
+            border-radius: 12px;
+            padding: 2.5rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            text-align: center;
+            max-width: 600px;
+            margin: 3rem auto;
+        }}
+        .auth-icon {{
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+        }}
+        .auth-heading {{
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.75rem;
+        }}
+        .auth-description {{
+            font-size: 1rem;
+            color: #6b7280;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }}
+        .auth-button {{
+            display: inline-block;
+            background: #4285f4 !important;
+            color: white !important;
+            padding: 14px 32px;
+            border-radius: 8px;
+            text-decoration: none !important;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
+            border: none;
+        }}
+        .auth-button:hover {{
+            background: #3367d6 !important;
+            box-shadow: 0 4px 12px rgba(66, 133, 244, 0.4);
+            transform: translateY(-1px);
+            color: white !important;
+            text-decoration: none !important;
+        }}
+        .auth-button:visited {{
+            color: white !important;
+        }}
+        .security-note {{
+            margin-top: 2rem;
+            padding: 1rem;
+            background: #f3f4f6;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #6b7280;
+        }}
+        </style>
+        
+        <div class="auth-box">
+            <div class="auth-icon">🗓️</div>
+            <div class="auth-heading">Connect Your Google Calendar</div>
+            <div class="auth-description">
+                To create and manage study sessions, we need permission to access your Google Calendar.
+                This is a secure, one-time authorization.
+            </div>
+            <a href="{auth_url}" class="auth-button" target="_self">
+                ✓ Connect Google Calendar
+            </a>
+            <div class="security-note">
+                🔒 Your data is secure. We only request calendar access and never store your credentials.
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
     
     return None
 
