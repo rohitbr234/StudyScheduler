@@ -5,16 +5,24 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from calendar_utils import get_calendar_service, create_event
 import pandas as pd
-from dateutil import parser  
+from dateutil import parser
 from datetime import timedelta
-
 
 load_dotenv()
 
-api_key = st.secrets.get("general", {}).get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+try:
+    api_key = st.secrets.get("general", {}).get("OPENAI_API_KEY")
+except Exception:
+    api_key = None
+
+if not api_key:
+    api_key = os.getenv("OPENAI_API_KEY")
+
+if not api_key:
+    st.error("No OpenAI API key found. Please set it in .streamlit/secrets.toml or as an environment variable.")
+    st.stop()
 
 client = OpenAI(api_key=api_key)
-
 
 st.title("Study Planner")
 
@@ -23,7 +31,7 @@ if not service:
     st.info("Please authorize Google Calendar access to continue.")
     st.stop()
 else:
-    st.success("Connected to Google Calendar!")
+    st.success("Connected to Google Calendar.")
 
 subject = st.text_input("Subject (required)")
 study_guide = st.text_area("Paste your study guide (optional)")
@@ -45,11 +53,11 @@ if st.button("Generate Schedule"):
         days_left = (test_date - datetime.date.today()).days
 
         prompt = f"""
-        You are a study planning assistant. 
+        You are a study planning assistant.
         Subject: {subject}
         Test date: {test_date}
         Days left: {days_left}
-        
+
         Here are the available days before the test:
         {available_days}
 
@@ -58,18 +66,13 @@ if st.button("Generate Schedule"):
 
         Study guide: {study_guide if study_guide else "None"}
 
-        Please return the study schedule in **Markdown format** with this style:
+        Please return the study schedule in Markdown format with this style:
         - A title for the schedule
         - A short intro line
-        - A table with columns: Date | Hours (limited by values specified above by day; check if each day is a weekday or weekend, then assign hours based on that) | Topics (max length 15 words, list specific topics even if not provided; use general knowledge of the subject to divide topics into reasonable chunks)
-        - At the end, a motivational closing note
-
-        The order of study topics should be logical and progressive.
-
-        Make sure it looks clean and easy to read.
-
-        Do NOT use any emojis or special characters.
-        Do NOT include any explanations outside the Markdown.
+        - A table with columns: Date | Hours | Topics
+        - The hours must respect the weekday and weekend limits
+        - Topics must be concise and relevant
+        - End with a motivational closing note
         """
 
         try:
@@ -80,9 +83,7 @@ if st.button("Generate Schedule"):
                     {"role": "user", "content": prompt},
                 ]
             )
-
             st.session_state["plan_md"] = response.choices[0].message.content
-
         except Exception as e:
             st.error(f"Error: {str(e)}")
 
@@ -93,7 +94,6 @@ if "plan_md" in st.session_state:
     if st.checkbox("Add this schedule to Google Calendar"):
         rows = []
         lines = plan_md.splitlines()
-
         for line in lines:
             if "|" in line and "Date" not in line and "---" not in line:
                 parts = [p.strip() for p in line.split("|") if p.strip()]
@@ -108,10 +108,9 @@ if "plan_md" in st.session_state:
         if rows:
             df = pd.DataFrame(rows, columns=["Date", "Hours", "Topic"])
             st.write("Events to be added:", df)
-
             if st.button("Confirm and Add to Calendar"):
                 for _, row in df.iterrows():
                     create_event(service, subject, row["Date"], row["Hours"], row["Topic"])
-                st.success("Study sessions added to your Google Calendar!")
+                st.success("Study sessions added to your Google Calendar.")
         else:
             st.warning("Could not parse schedule into events. Please check the table format.")
