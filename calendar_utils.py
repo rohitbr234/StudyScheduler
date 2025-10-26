@@ -70,6 +70,12 @@ def get_calendar_service():
             
             code = str(code).strip()
             
+            st.write("🔍 **Debug Info:**")
+            st.write(f"- Redirect URI: `{redirect_uri}`")
+            st.write(f"- Running locally: `{running_locally}`")
+            st.write(f"- Code received: `{code[:20]}...`")
+            st.write(f"- Flow redirect_uri: `{flow.redirect_uri}`")
+
             with st.spinner("🔄 Connecting to Google Calendar..."):
                 flow.fetch_token(code=code)
                 creds = flow.credentials
