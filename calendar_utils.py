@@ -10,11 +10,15 @@ from googleapiclient.discovery import build
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
 def get_calendar_service():
+    """Get or create Google Calendar service with OAuth"""
+    
+    # Check if we already have valid credentials
     creds = st.session_state.get("google_creds")
 
     if creds and creds.valid:
         return build("calendar", "v3", credentials=creds)
 
+    # Try to refresh expired credentials
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
@@ -23,7 +27,9 @@ def get_calendar_service():
         except Exception as e:
             st.error(f"Token refresh failed: {e}")
             del st.session_state["google_creds"]
+            creds = None
 
+    # Determine if running locally or deployed
     running_locally = os.path.exists("credentials.json")
 
     if running_locally:
@@ -31,6 +37,7 @@ def get_calendar_service():
     else:
         redirect_uri = "https://rohitbr234-studyscheduler-app-streamlit-compatability-nztr6y.streamlit.app/"
 
+    # Create OAuth flow
     if "oauth_flow" not in st.session_state or st.session_state.get("flow_redirect_uri") != redirect_uri:
         if running_locally:
             flow = Flow.from_client_secrets_file(
@@ -39,6 +46,7 @@ def get_calendar_service():
                 redirect_uri=redirect_uri
             )
         else:
+            # Use credentials from Streamlit secrets
             client_config = {
                 "web": {
                     "client_id": st.secrets["gcp_oauth"]["client_id"],
@@ -46,9 +54,7 @@ def get_calendar_service():
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
                     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                    "redirect_uris": [redirect_uri],  # This was already here - good!
-                    # ADD THIS - it's often required:
-                    "javascript_origins": ["https://studyscheduler.streamlit.app"]
+                    "redirect_uris": [redirect_uri]
                 }
             }
             flow = Flow.from_client_config(
@@ -62,55 +68,41 @@ def get_calendar_service():
     else:
         flow = st.session_state["oauth_flow"]
 
+    # Check if we're receiving the OAuth callback
     query_params = st.query_params
     
     if "code" in query_params:
         try:
+            # Extract authorization code
             code = query_params.get("code")
             if isinstance(code, list):
                 code = code[0]
-            
             code = str(code).strip()
             
-            st.write("🔍 **Debug Info:**")
-            st.write(f"- Redirect URI: `{redirect_uri}`")
-            st.write(f"- Running locally: `{running_locally}`")
-            st.write(f"- Code received: `{code[:20]}...`")
-            st.write(f"- Flow redirect_uri: `{flow.redirect_uri}`")
-
-            with st.spinner("🔄 Connecting to Google Calendar..."):
+            # Exchange code for credentials
+            with st.spinner("Connecting to Google Calendar..."):
                 flow.fetch_token(code=code)
                 creds = flow.credentials
                 
+                # Save credentials
                 st.session_state["google_creds"] = creds
                 
+                # Clean up
                 if "oauth_flow" in st.session_state:
                     del st.session_state["oauth_flow"]
                 if "flow_redirect_uri" in st.session_state:
                     del st.session_state["flow_redirect_uri"]
                 
+                # Clear URL parameters and reload
                 st.query_params.clear()
                 st.success("✅ Successfully connected to Google Calendar!")
                 st.rerun()
             
         except Exception as e:
-            error_msg = str(e)
-            st.error(f"❌ Connection failed: {error_msg}")
+            st.error(f"❌ Authentication failed: {str(e)}")
+            st.error("Please try resetting the connection using the button above.")
             
-            with st.expander("🔍 Debug Information"):
-                import traceback
-                st.code(f"""
-Error Type: {type(e).__name__}
-Error Message: {error_msg}
-Redirect URI: {redirect_uri}
-Code Length: {len(code) if 'code' in locals() else 'N/A'}
-Running Locally: {running_locally}
-Flow Redirect URI: {flow.redirect_uri}
-
-Full Traceback:
-{traceback.format_exc()}
-                """)
-            
+            # Clean up on error
             st.query_params.clear()
             if "oauth_flow" in st.session_state:
                 del st.session_state["oauth_flow"]
@@ -126,7 +118,7 @@ Full Traceback:
         include_granted_scopes="true"
     )
     
-    # Clean, minimal authorization UI
+    # Display authorization button
     st.markdown(f"""
         <style>
         .auth-box {{
@@ -165,17 +157,11 @@ Full Traceback:
             font-size: 1.1rem;
             transition: all 0.2s;
             box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
-            border: none;
         }}
         .auth-button:hover {{
             background: #3367d6 !important;
             box-shadow: 0 4px 12px rgba(66, 133, 244, 0.4);
             transform: translateY(-1px);
-            color: white !important;
-            text-decoration: none !important;
-        }}
-        .auth-button:visited {{
-            color: white !important;
         }}
         .security-note {{
             margin-top: 2rem;
@@ -192,13 +178,12 @@ Full Traceback:
             <div class="auth-heading">Connect Your Google Calendar</div>
             <div class="auth-description">
                 To create and manage study sessions, we need permission to access your Google Calendar.
-                This is a secure, one-time authorization.
             </div>
             <a href="{auth_url}" class="auth-button" target="_self">
-                ✓ Connect Google Calendar
+                Connect Google Calendar
             </a>
             <div class="security-note">
-                🔒 Your data is secure. We only request calendar access and never store your credentials.
+                🔒 Your data is secure. We only request calendar access.
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -207,6 +192,7 @@ Full Traceback:
 
 
 def create_event(service, subject, date, hours, topic, start_hour=18):
+    """Create a calendar event"""
     start_time = datetime.datetime.combine(date, datetime.time(start_hour, 0))
     end_time = start_time + datetime.timedelta(hours=int(hours))
 
