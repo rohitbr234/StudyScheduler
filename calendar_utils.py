@@ -29,7 +29,7 @@ def get_calendar_service():
     if running_locally:
         redirect_uri = "http://localhost:8501/"
     else:
-        redirect_uri = "https://studyscheduler.streamlit.app/"
+        redirect_uri = "https://rohitbr234-studyscheduler-app-streamlit-compatability-nztr6y.streamlit.app/"
 
     if "oauth_flow" not in st.session_state or st.session_state.get("flow_redirect_uri") != redirect_uri:
         if running_locally:
@@ -46,7 +46,9 @@ def get_calendar_service():
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
                     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                    "redirect_uris": [redirect_uri]
+                    "redirect_uris": [redirect_uri],  # This was already here - good!
+                    # ADD THIS - it's often required:
+                    "javascript_origins": ["https://studyscheduler.streamlit.app"]
                 }
             }
             flow = Flow.from_client_config(
@@ -96,12 +98,17 @@ def get_calendar_service():
             st.error(f"❌ Connection failed: {error_msg}")
             
             with st.expander("🔍 Debug Information"):
+                import traceback
                 st.code(f"""
 Error Type: {type(e).__name__}
 Error Message: {error_msg}
 Redirect URI: {redirect_uri}
 Code Length: {len(code) if 'code' in locals() else 'N/A'}
 Running Locally: {running_locally}
+Flow Redirect URI: {flow.redirect_uri}
+
+Full Traceback:
+{traceback.format_exc()}
                 """)
             
             st.query_params.clear()

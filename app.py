@@ -26,6 +26,14 @@ client = OpenAI(api_key=api_key)
 
 st.title("Study Planner")
 
+# OAuth reset button for debugging
+if st.button("🔄 Reset OAuth Connection"):
+    for key in ["google_creds", "oauth_flow", "flow_redirect_uri"]:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.query_params.clear()
+    st.rerun()
+
 service = get_calendar_service()
 if not service:
     st.info("Please authorize Google Calendar access to continue.")
