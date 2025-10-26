@@ -189,7 +189,7 @@ Running Locally: {running_locally}
                 To create and manage study sessions, we need permission to access your Google Calendar.
                 This is a secure, one-time authorization.
             </div>
-            <a href="{auth_url}" class="auth-button" target="_self">
+            <a href="{auth_url}" class="auth-button" target="_blank" rel="noopener noreferrer">
                 ✓ Connect Google Calendar
             </a>
             <div class="security-note">
