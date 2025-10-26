@@ -30,6 +30,8 @@ def get_calendar_service():
         redirect_uri = "http://localhost:8501/"
     else:
         redirect_uri = "https://studyscheduler.streamlit.app/"
+        
+    st.write("🔍 Using redirect URI:", redirect_uri)
 
     if "oauth_flow" not in st.session_state or st.session_state.get("flow_redirect_uri") != redirect_uri:
         if running_locally:
